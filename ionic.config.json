@@ -1,0 +1,7 @@
+{
+  "name": "GetDriver",
+  "integrations": {
+    "cordova": {}
+  },
+  "type": "ionic-angular"
+}
