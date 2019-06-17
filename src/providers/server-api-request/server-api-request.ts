@@ -18,15 +18,25 @@ export class ServerApiRequest {
     
   }
 
-  getEmailExsist(email){
-    return this.http.get(this.globals.apiUrl+"?method=getEmailExsist&email="+email)    
+  
+  getSiteSettingsData(){
+    var headers = new Headers();
+    headers.append('Access-Control-Allow-Origin' , '*');
+    headers.append('Access-Control-Allow-Methods', 'POST, GET, OPTIONS, PUT');
+    headers.append('Accept','application/json');
+    headers.append('content-type','application/json');
+   let options = new RequestOptions({ headers:headers,withCredentials: true});
+    return this.http.get(this.globals.apiUrl+"?method=getSiteSettingsData&lang_id="+this.globals.lang_id)    
     .map(this.extrectData)
     .do(this.logResponse)
     .catch(this.catchError)
   }
 
-  getSiteSettingsData(){
-    return this.http.get(this.globals.apiUrl+"?method=getSiteSettingsData&lang_id="+this.globals.lang_id)    
+
+
+
+  getEmailExsist(email){
+    return this.http.get(this.globals.apiUrl+"?method=getEmailExsist&email="+email)    
     .map(this.extrectData)
     .do(this.logResponse)
     .catch(this.catchError)

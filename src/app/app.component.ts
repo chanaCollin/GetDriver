@@ -126,42 +126,205 @@ export class MyApp {
  
          this.func.googleAnalyticsTrack('App started');
  
-        /* this.getSiteSettingsData().then(() =>
-           this.configoneSignal().then(() => 
-             this.getStorageUserData().then(() =>
-               this.setRootPage().then(() =>
+         this.getSiteSettingsData().then(() =>
+    
+           //this.configoneSignal().then(() => 
+             //this.getStorageUserData().then(() =>
+               //this.setRootPage().then(() =>
                  this.hideSplashScreen()
-               )
-             )
-           )
-         )*/
+              // )
+             //)
+          //)
+         )
        }
      })    
  
     //set lang
-    this.translateService.setDefaultLang('en');
-    this.translateService.use('en');
+    this.translateService.setDefaultLang('he');
+    this.translateService.use('he');
     
      
      /********initial test********/
      //googleAnalytics
-    /* this.func.googleAnalyticsTrack('App started');
-     if(this.platform.is('cordova')){          
-       //onesignal
-       this.configoneSignal();
-     }
-     //network
-     this.checkNetwork();
+    /*this.func.googleAnalyticsTrack('App started');
      //get device detailes
      console.log('Device detailes: ' + this.device.manufacturer+" "+this.device.model+" "+this.device.platform
      +" "+this.device.version);
      //get app version
      this.appVersion.getVersionNumber().then((val) => {
-     console.log(val);
+     console.log("appVersion"+val);
     });*/
  
    }
 
+   private getSiteSettingsData(){
+    return new Promise(resolve => {
+
+      console.log('111 getSiteSettingsData');
+      //get settings page data
+      this.serverApiRequest.getSiteSettingsData().subscribe(data => {
+        if(data.error!=1){
+          //add site settings to storage
+          this.settings_data = data.settings_data;
+          this.globals.siteSettings = data.settings_data;
+          this.globals.jobsList = data.settings_data.jobsList;
+          this.globals.secondHandList = data.settings_data.secondHandList;
+          console.log(this.globals.siteSettings);
+          this.storage.set('siteSettings', data.settings_data).then(() =>{
+            resolve(data.settings_data);
+          });      
+        }else{
+          console.log('ERROR getSiteSettingsData: ',data.err_desc);
+        }
+      });      
+    });    
+  }
+
+
+  private configoneSignal(){
+    return new Promise(resolve => {
+      console.log('112 configoneSignal');
+      if(this.platform.is('cordova')){        
+        this.oneSignal.startInit('b4bd2a06-f33f-4e3c-8ca0-e6835295a432', '793548654523');
+        this.oneSignal.addSubscriptionObserver().subscribe((state) => {console.log('addSubscriptionObserver: ',state)});
+        this.oneSignal.inFocusDisplaying(this.oneSignal.OSInFocusDisplayOption.InAppAlert);
+        this.oneSignal.handleNotificationReceived().subscribe((jsonData) => {
+          console.log('oneSignal Received:', jsonData);
+        });
+        this.oneSignal.handleNotificationOpened().subscribe((jsonData) => {
+          console.log('oneSignal Opened:', jsonData)
+        });
+        this.oneSignal.endInit();
+        resolve(this.oneSignal);
+      }else{
+        console.log('WORNING configoneSignal: not cordova');
+        resolve('WORNING');
+      }
+    });
+  }
+
+
+  private getStorageUserData(){
+    return new Promise(resolve => {
+      console.log('113 getStorageUserData');
+      this.storage.get('user_data').then((userData) => {
+        if(userData){
+          console.log('4. userData:', userData);
+          //get user data from server
+          this.serverApiRequest.getUserData(userData['id']).subscribe((data)=>{
+            if(data.user_data){
+              this.user_data = data.user_data;
+              console.log('app user_data:', this.user_data);
+
+              this.storage.set('user_data', this.user_data).then(()=>{
+                //update user device data
+                this.updateRegisterdUserData().then(()=>{
+                  let sendData = {
+                    user_id: this.user_data['id'],
+                    app_version: this.app_version,
+                    app_device_type: this.app_device_type,
+                    app_gcm_id: this.oneSignal_id     
+                  }
+                 
+                  this.serverApiRequest.setUserData(sendData).subscribe(data => {
+                    resolve(userData);
+                  });  
+                });
+                //resolve(userData);
+              });
+            }            
+            else{
+              this.storage.set('rootPage','IntroPage').then(()=>{
+                resolve('no user');
+              });              
+            }
+          })
+        }else{
+          this.storage.set('rootPage','IntroPage').then(()=>{
+            resolve('no user');
+          });              
+        }        
+      }).catch(() =>{
+        resolve('ERROR');
+      })
+    });
+  }
+
+  updateRegisterdUserData(){
+      
+    return new Promise(resolve => {
+      console.log('114 updateRegisterdUserData');
+      //get device
+      if(this.platform.is('cordova')){
+        this.app_device_type = this.device.platform+','+this.device.model+','+this.device.manufacturer;
+      }else{
+        this.app_device_type = 'Unknown browser';
+      }
+
+      if(this.platform.is('cordova')){
+        
+        this.appVersion.getVersionNumber().then((app_version)=>{
+          this.app_version = app_version;
+          //get oneSignal_id
+          this.oneSignal.getIds().then((ids) => {      
+            this.oneSignal_id = ids.userId;
+            this.oneSignal.sendTag('user_type','client');  
+            resolve('Done');
+          }).catch(()=>{
+            this.oneSignal_id = 'Unknown browser';        
+            resolve('Done');
+          });  
+        }).catch(()=>{
+          this.app_version = 'Unknown browser';
+          this.oneSignal_id = 'Unknown browser';        
+          resolve('Done');
+        });    
+      }else{
+        this.app_version = 'Unknown browser';
+        this.oneSignal_id = 'Unknown browser';        
+        resolve('Done');
+      }
+
+    });
+  }
+
+  private setRootPage(){
+    return new Promise(resolve => {
+      console.log('115 setRootPage');
+      this.storage.get('rootPage').then((rootPage) => {
+
+        console.log('this.rootPage: ',rootPage);
+        
+        if(rootPage){
+            this.rootPage = rootPage;
+          resolve(rootPage);
+        }else{
+          this.storage.set('rootPage','IntroPage').then(()=>{
+            this.rootPage = 'IntroPage';
+            /*this.storage.set('rootPage','HomePage').then(()=>{
+              this.rootPage = 'HomePage';*/
+            resolve(rootPage);
+          });
+        } 
+        
+      });        
+      
+    });
+  }
+
+  private hideSplashScreen(){
+    return new Promise(resolve => {
+      console.log('116 hideSplashScreen');
+      this.statusBar.styleDefault();
+      this.splashScreen.hide();  
+
+      setTimeout(() => {
+        this.appLoaded = "app-did-load";
+      }, 2000);            
+
+      resolve('this.splashScreen');
+    });
+  }
 
 
 }
